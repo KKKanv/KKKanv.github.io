@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纽约出租车数据可视化大屏 2018</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0e17; color:#c9d1d9; font-family:'Segoe UI','Microsoft YaHei',sans-serif; overflow-x:hidden; }
+.header { text-align:center; padding:12px 20px; background:linear-gradient(90deg,#0a0e17,#1a2332,#0a0e17); border-bottom:1px solid #1e3a5f; }
+.header h1 { font-size:22px; background:linear-gradient(90deg,#4ec9ff,#7dd3fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:3px; }
+.header .sub { font-size:12px; color:#6b7c93; margin-top:2px; }
+.dashboard { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; padding:8px; max-width:1920px; margin:0 auto; }
+.card { background:#111827; border:1px solid #1e3a5f; border-radius:6px; padding:8px; position:relative; overflow:hidden; }
+.card-title { font-size:12px; color:#7dd3fc; margin-bottom:4px; font-weight:600; letter-spacing:1px; }
+.kpi-card { text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:90px; }
+.kpi-value { font-size:26px; font-weight:bold; background:linear-gradient(180deg,#fff,#7dd3fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.kpi-label { font-size:10px; color:#6b7c93; margin-top:2px; }
+.chart { width:100%; height:100%; min-height:280px; }
+.col-span-3 { grid-column:span 3; }
+.col-span-6 { grid-column:span 6; }
+.tab-bar { display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+.tab-btn { padding:3px 10px; border:1px solid #1e3a5f; background:transparent; color:#6b7c93; cursor:pointer; border-radius:3px; font-size:11px; transition:all .2s; }
+.tab-btn.active { background:#1e3a5f; color:#7dd3fc; border-color:#4ec9ff; }
+.tab-btn:hover { border-color:#4ec9ff; color:#c9d1d9; }
+@media (max-width:1200px) { .dashboard { grid-template-columns:repeat(3,1fr); } .col-span-3,.col-span-6 { grid-column:span 3; } }
+@media (max-width:768px) { .dashboard { grid-template-columns:1fr; } .col-span-3,.col-span-6 { grid-column:span 1; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>纽约出租车数据可视化大屏 2018</h1>
+  <div class="sub">Yellow & Green 出租车 | 全年12个月数据 | 清洗·分析·聚类·预测·可视化</div>
+</div>
+
+<div class="dashboard">
+  <!-- KPI -->
+  <div class="card kpi-card" id="kpi-trips"><div class="kpi-value">--</div><div class="kpi-label">总订单量</div></div>
+  <div class="card kpi-card" id="kpi-revenue"><div class="kpi-value">--</div><div class="kpi-label">总收入</div></div>
+  <div class="card kpi-card" id="kpi-avgdist"><div class="kpi-value">--</div><div class="kpi-label">平均距离 (英里)</div></div>
+  <div class="card kpi-card" id="kpi-avgfare"><div class="kpi-value">--</div><div class="kpi-label">平均费用</div></div>
+  <div class="card kpi-card" id="kpi-peakhour"><div class="kpi-value">--</div><div class="kpi-label">高峰时段</div></div>
+  <div class="card kpi-card" id="kpi-peakmonth"><div class="kpi-value">--</div><div class="kpi-label">高峰月份</div></div>
+
+  <!-- 订单趋势 + 行政区饼图 -->
+  <div class="card col-span-3" id="card-trend">
+    <div class="card-title">订单量趋势</div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTrend('daily')">按日</button>
+      <button class="tab-btn" onclick="switchTrend('monthly')">按月</button>
+      <button class="tab-btn" onclick="switchTrend('hourly')">按小时</button>
+      <button class="tab-btn" onclick="switchTrend('dow')">按星期</button>
+    </div>
+    <div class="chart" id="chart-trend"></div>
+  </div>
+  <div class="card col-span-3" id="card-borough">
+    <div class="card-title">各行政区订单分布</div>
+    <div class="chart" id="chart-borough"></div>
+  </div>
+
+  <!-- 地图 + 费用分布 -->
+  <div class="card col-span-3" id="card-map">
+    <div class="card-title">上车点热力地图</div>
+    <div class="chart" id="chart-map" style="height:380px"></div>
+  </div>
+  <div class="card col-span-3" id="card-fare">
+    <div class="card-title">费用分布</div>
+    <div class="chart" id="chart-fare"></div>
+  </div>
+
+  <!-- 相关性 + 聚类 -->
+  <div class="card col-span-3" id="card-corr">
+    <div class="card-title">字段相关性热力图</div>
+    <div class="chart" id="chart-corr"></div>
+  </div>
+  <div class="card col-span-3" id="card-cluster">
+    <div class="card-title">K-Means 聚类分析（距离 × 费用 × 时长）</div>
+    <div class="chart" id="chart-cluster"></div>
+  </div>
+
+  <!-- 距离分布 + 天气联动 -->
+  <div class="card col-span-3" id="card-dist">
+    <div class="card-title">行程距离分布</div>
+    <div class="chart" id="chart-dist"></div>
+  </div>
+  <div class="card col-span-3" id="card-weather">
+    <div class="card-title">天气与订单量联动分析</div>
+    <div class="chart" id="chart-weather"></div>
+  </div>
+
+  <!-- 预测 -->
+  <div class="card col-span-6" id="card-pred">
+    <div class="card-title">订单量预测：实际值 vs 预测值（Prophet 模型）</div>
+    <div class="chart" id="chart-pred" style="height:320px"></div>
+  </div>
+
+  <!-- Top 上车区域 -->
+  <div class="card col-span-6" id="card-zones">
+    <div class="card-title">上车最热门区域 Top 15</div>
+    <div class="chart" id="chart-zones" style="height:320px"></div>
+  </div>
+</div>
+
+<script src="DATA3/dashboard_data.js"></script>
+<script>
+// ═══════════════════════════════════════════════
+// 数据加载
+// ═══════════════════════════════════════════════
+const DATA = {};
+const DOW_CN = ['周日','周一','周二','周三','周四','周五','周六'];
+const MONTH_CN = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const BOROUGH_CN = {'Manhattan':'曼哈顿','Brooklyn':'布鲁克林','Queens':'皇后区','Bronx':'布朗克斯','Staten Island':'史坦顿岛'};
+const CLUSTER_COLORS = ['#4ec9ff','#fbbf24','#f87171','#34d399','#a78bfa'];
+const BOROUGH_COLORS = ['#4ec9ff','#fbbf24','#34d399','#f87171','#a78bfa'];
+
+function tBorough(name) { return BOROUGH_CN[name] || name; }
+
+function loadData() {
+  if (window.DASHBOARD_DATA) {
+    Object.assign(DATA, window.DASHBOARD_DATA);
+    return; // GeoJSON is already in DATA.geojson
+  }
+  // fallback: fetch mode (HTTP server)
+  return Promise.all(
+    ['overview','temporal','spatial','correlation','clusters','prediction','preference','weather'].map(f =>
+      fetch('DATA3/'+f+'.json').then(r=>r.json()).then(d=>{DATA[f]=d;}).catch(e=>console.warn(f,e))
+    )
+  ).then(()=>fetch('DATA3/nyc_zones.geojson').then(r=>r.json()).then(d=>{DATA.geojson=d;}).catch(()=>{}));
+}
+
+// ═══════════════════════════════════════════════
+// 工具函数
+// ═══════════════════════════════════════════════
+function fmt(n) { if (n==null) return '--'; return n>=1e9?(n/1e9).toFixed(1)+'亿':n>=1e6?(n/1e6).toFixed(1)+'百万':n>=1e3?(n/1e3).toFixed(1)+'千':n.toFixed(0); }
+function fmtUSD(n) { if (n==null) return '--'; return n>=1e9?'$'+(n/1e9).toFixed(1)+'B':n>=1e6?'$'+(n/1e6).toFixed(1)+'M':'$'+n.toFixed(0); }
+
+function initChart(id) {
+  const d = document.getElementById(id);
+  if (!d) return null;
+  const c = echarts.init(d, 'dark');
+  c.setOption({backgroundColor:'transparent'});
+  return c;
+}
+
+// ═══════════════════════════════════════════════
+// 图表渲染
+// ═══════════════════════════════════════════════
+function renderAll() {
+  renderKPIs();
+  renderTrend('daily');
+  renderBorough();
+  renderMap();
+  renderFareHist();
+  renderCorrHeatmap();
+  renderCluster();
+  renderDistHist();
+  renderWeather();
+  renderPrediction();
+  renderTopZones();
+}
+
+function renderKPIs() {
+  const ov = DATA.overview || {};
+  setKPI('kpi-trips', fmt(ov.total_trips));
+  setKPI('kpi-revenue', fmtUSD(ov.total_revenue));
+  setKPI('kpi-avgdist', (ov.avg_distance||0).toFixed(1)+' mi');
+  setKPI('kpi-avgfare', '$'+(ov.avg_fare||0).toFixed(2));
+  setKPI('kpi-peakhour', (ov.peak_hour||0)+':00');
+  setKPI('kpi-peakmonth', MONTH_CN[(ov.peak_month||1)-1]);
+}
+function setKPI(id, val) {
+  const el = document.querySelector('#'+id+' .kpi-value');
+  if (el) el.textContent = val;
+}
+
+function renderTrend(mode) {
+  const chart = initChart('chart-trend'); if (!chart) return;
+  const td = DATA.temporal;
+  if (!td) { chart.setOption({title:{text:'暂无数据',left:'center',top:'center',textStyle:{color:'#6b7c93'}}}); return; }
+  let opt;
+  if (mode==='daily') {
+    opt = {
+      tooltip:{trigger:'axis',formatter:p=>`${p[0].axisValue}<br/>订单量：<b>${fmt(p[0].value)}</b>`},
+      xAxis:{type:'category',data:td.daily_avg.map(d=>d.day),axisLabel:{show:false},splitLine:{show:false}},
+      yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+      dataZoom:[{type:'slider',start:0,end:100,height:20,bottom:0,textStyle:{color:'#6b7c93'}}],
+      series:[{type:'line',data:td.daily_avg.map(d=>d.trips),smooth:true,showSymbol:false,lineStyle:{color:'#4ec9ff',width:1},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(78,201,255,0.3)'},{offset:1,color:'rgba(78,201,255,0.02)'}])}}],
+      grid:{left:55,right:20,top:10,bottom:50},
+    };
+  } else if (mode==='monthly') {
+    const m = {};
+    td.daily_avg.forEach(d=>{const k=d.day.substring(0,7); m[k]=(m[k]||0)+d.trips;});
+    const keys = Object.keys(m).sort();
+    opt = {
+      tooltip:{trigger:'axis',formatter:p=>`${p[0].axisValue}<br/>订单量：<b>${fmt(p[0].value)}</b>`},
+      xAxis:{type:'category',data:keys.map(k=>k.substring(0,4)+'年'+parseInt(k.substring(5,7))+'月'),axisLabel:{rotate:45,color:'#6b7c93',fontSize:10}},
+      yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+      series:[{type:'bar',data:keys.map(k=>m[k]),itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#4ec9ff'},{offset:1,color:'#1e3a5f'}])}}],
+      grid:{left:55,right:15,top:10,bottom:45},
+    };
+  } else if (mode==='hourly') {
+    const hr = td.hourly.sort((a,b)=>a.hour-b.hour);
+    opt = {
+      tooltip:{trigger:'axis',formatter:p=>`${p[0].axisValue}:00<br/>订单量：<b>${fmt(p[0].value)}</b>`},
+      xAxis:{type:'category',data:hr.map(h=>h.hour+':00'),axisLabel:{color:'#6b7c93'}},
+      yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+      series:[{type:'bar',data:hr.map(h=>h.trips),itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#fbbf24'},{offset:1,color:'#78350f'}])}}],
+      grid:{left:55,right:15,top:10,bottom:30},
+    };
+  } else {
+    const dow = td.dow.sort((a,b)=>a.day-b.day);
+    opt = {
+      tooltip:{trigger:'axis',formatter:p=>`${DOW_CN[p[0].dataIndex]}<br/>订单量：<b>${fmt(p[0].value)}</b>`},
+      xAxis:{type:'category',data:DOW_CN,axisLabel:{color:'#6b7c93'}},
+      yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+      series:[{type:'bar',data:dow.map(d=>d.trips),itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#34d399'},{offset:1,color:'#064e3b'}])}}],
+      grid:{left:55,right:15,top:10,bottom:30},
+    };
+  }
+  chart.setOption(opt, true);
+}
+
+function switchTrend(mode) {
+  document.querySelectorAll('#card-trend .tab-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderTrend(mode);
+}
+
+function renderBorough() {
+  const chart = initChart('chart-borough'); if (!chart) return;
+  const d = DATA.spatial && DATA.spatial.borough_stats;
+  if (!d) return;
+  chart.setOption({
+    tooltip:{trigger:'item',formatter:p=>`${tBorough(p.name)}<br/>订单量：<b>${fmt(p.value)}</b>（${p.percent}%）`},
+    series:[{type:'pie',radius:['45%','75%'],center:['50%','52%'],data:d.map((b,i)=>({name:tBorough(b.borough),value:b.trips,itemStyle:{color:BOROUGH_COLORS[i]}})),label:{color:'#c9d1d9',fontSize:11,formatter:p=>`${p.name}\n${p.percent}%`},emphasis:{label:{fontSize:16,fontWeight:'bold'}}}],
+  });
+}
+
+function renderMap() {
+  const chart = initChart('chart-map'); if (!chart) return;
+  const geo = DATA.geojson;
+  const sp = DATA.spatial;
+  if (!geo) { chart.setOption({title:{text:'地图数据未加载\n请重新运行 data_processor.py',left:'center',top:'center',textStyle:{color:'#f87171',fontSize:12}}}); return; }
+
+  // 给每个区域加 name 属性（ECharts 用它匹配数据）
+  geo.features.forEach(f => {
+    f.properties = f.properties || {};
+    f.properties.name = String(f.properties.LocationID || '');
+  });
+
+  const zoneMap = {};
+  if (sp && sp.top_pickup) sp.top_pickup.forEach(z=>{ zoneMap[z.location_id] = z.trips; });
+  echarts.registerMap('nyc', geo);
+  const maxV = Math.max(...Object.values(zoneMap), 1);
+
+  const dataList = Object.entries(zoneMap).map(([id, trips]) => ({name: id, value: trips}));
+
+  chart.setOption({
+    tooltip:{trigger:'item',formatter:p=>{
+      if (!p || !p.name) return '';
+      const feat = geo.features.find(f=>f.properties.name===String(p.name));
+      const props = feat ? feat.properties : {};
+      return `<b>${props.Zone || props.zone || p.name}</b><br/>行政区：${tBorough(props.Borough || '未知')}<br/>订单量：${fmt(p.value || 0)}`;
+    }},
+    visualMap:{min:0,max:maxV,calculable:true,left:'left',bottom:10,text:['高','低'],inRange:{color:['#0a1628','#0d3b66','#1a73e8','#4ec9ff','#e0f2fe']},textStyle:{color:'#6b7c93'}},
+    series:[{type:'map',map:'nyc',roam:true,zoom:1.2,center:[-73.94,40.72],itemStyle:{borderColor:'#1e3a5f',borderWidth:0.5,areaColor:'#0d2137'},emphasis:{itemStyle:{areaColor:'#fbbf24'},label:{color:'#fff',show:true}},data:dataList}],
+  });
+}
+
+function renderFareHist() {
+  const chart = initChart('chart-fare'); if (!chart) return;
+  const h = DATA.preference && DATA.preference.fare_histogram;
+  if (!h) return;
+  chart.setOption({
+    tooltip:{trigger:'axis',formatter:p=>`$${p[0].axisValue}<br/>订单量：<b>${fmt(p[0].value)}</b>`},
+    xAxis:{type:'category',data:h.bins.slice(0,-1).map(b=>'$'+b.toFixed(0)),axisLabel:{rotate:45,color:'#6b7c93',fontSize:9},splitLine:{show:false}},
+    yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+    series:[{type:'bar',data:h.counts,itemStyle:{color:'#4ec9ff',borderRadius:[2,2,0,0]},barWidth:'90%'}],
+    grid:{left:50,right:15,top:10,bottom:45},
+  });
+}
+
+function renderDistHist() {
+  const chart = initChart('chart-dist'); if (!chart) return;
+  const h = DATA.preference && DATA.preference.distance_histogram;
+  if (!h) return;
+  chart.setOption({
+    tooltip:{trigger:'axis',formatter:p=>`${p[0].axisValue} 英里<br/>订单量：<b>${fmt(p[0].value)}</b>`},
+    xAxis:{type:'category',data:h.bins.slice(0,-1).map(b=>b.toFixed(1)+'mi'),axisLabel:{rotate:45,color:'#6b7c93',fontSize:9},splitLine:{show:false}},
+    yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+    series:[{type:'bar',data:h.counts,itemStyle:{color:'#34d399',borderRadius:[2,2,0,0]},barWidth:'90%'}],
+    grid:{left:50,right:15,top:10,bottom:45},
+  });
+}
+
+function renderCorrHeatmap() {
+  const chart = initChart('chart-corr'); if (!chart) return;
+  const corr = DATA.correlation;
+  if (!corr) return;
+  const labels = corr.labels.map(l=>{
+    const m = {'trip_distance':'距离','fare_amount':'费用','duration_min':'时长','passenger_count':'乘客数'};
+    return m[l]||l;
+  });
+  chart.setOption({
+    tooltip:{trigger:'item',formatter:p=>`${labels[p.data[1]]} vs ${labels[p.data[0]]}<br/>相关系数：<b>${p.data[2]}</b>`},
+    xAxis:{type:'category',data:labels,axisLabel:{color:'#6b7c93',fontSize:10},splitLine:{show:false}},
+    yAxis:{type:'category',data:labels,axisLabel:{color:'#6b7c93',fontSize:10},splitLine:{show:false}},
+    visualMap:{min:-1,max:1,calculable:true,left:'left',bottom:5,text:['1','-1'],inRange:{color:['#1e3a5f','#111827','#7c2d12']},textStyle:{color:'#6b7c93'}},
+    series:[{type:'heatmap',data:corr.annotations.map((row,i)=>row.map((v,j)=>[j,i,v])).flat(),label:{show:true,color:'#c9d1d9',fontSize:11},emphasis:{itemStyle:{shadowBlur:10}}}],
+    grid:{left:110,right:40,top:10,bottom:40},
+  });
+}
+
+function renderCluster() {
+  const chart = initChart('chart-cluster'); if (!chart) return;
+  const cl = DATA.clusters;
+  if (!cl || !cl.scatter_points) return;
+  const pts = cl.scatter_points;
+  // 2D scatter: 距离 × 费用，按簇着色
+  const series = [];
+  for (let c=0; c<5; c++) {
+    const cp = pts.filter(p=>p.cluster===c);
+    if (cp.length>0) series.push({
+      type:'scatter', name:'聚类'+c, data:cp.map(p=>[p.x,p.y]),
+      symbolSize:3, itemStyle:{color:CLUSTER_COLORS[c],opacity:0.5}
+    });
+  }
+  chart.setOption({
+    tooltip:{formatter:p=>`<b>聚类${p.seriesName.replace('聚类','')}</b><br/>距离：${p.value[0].toFixed(1)} 英里<br/>费用：$${p.value[1].toFixed(2)}`},
+    legend:{data:series.map(s=>s.name),textStyle:{color:'#6b7c93',fontSize:10},top:0},
+    xAxis:{name:'距离（英里）',type:'value',splitLine:{lineStyle:{color:'#1e293b'}}},
+    yAxis:{name:'费用（$）',type:'value',splitLine:{lineStyle:{color:'#1e293b'}}},
+    series:series,
+    grid:{left:60,right:20,top:25,bottom:40},
+  });
+}
+
+function renderWeather() {
+  const chart = initChart('chart-weather'); if (!chart) return;
+  const w = DATA.weather;
+  if (!w || !w.data || w.data.length===0) { chart.setOption({title:{text:'天气数据暂不可用',left:'center',top:'center',textStyle:{color:'#6b7c93'}}}); return; }
+  const dates = w.data.map(d=>d.date);
+  // 显示相关系数
+  let corrNote = '';
+  if (w.correlations) {
+    const labels = {tavg:'平均温度',tmin:'最低温度',tmax:'最高温度',prcp:'降水量',wspd:'风速'};
+    corrNote = Object.entries(w.correlations).map(([k,v])=>`${labels[k]||k}: ${v}`).join(' ｜ ');
+  }
+  chart.setOption({
+    tooltip:{trigger:'axis',formatter:params=>{
+      let s = '<b>'+params[0].axisValue+'</b><br/>';
+      params.forEach(p=>{
+        if (p.seriesName==='订单量') s+=p.marker+' 订单量：<b>'+fmt(p.value)+'</b><br/>';
+        else s+=p.marker+' 温度：<b>'+p.value+'°C</b><br/>';
+      });
+      return s;
+    }},
+    legend:{data:['订单量','温度'],textStyle:{color:'#6b7c93'},top:0},
+    xAxis:{type:'category',data:dates,axisLabel:{show:false},splitLine:{show:false}},
+    yAxis:[
+      {type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+      {type:'value',name:'温度 (°C)',splitLine:{show:false}},
+    ],
+    series:[
+      {name:'订单量',type:'line',data:w.data.map(d=>d.trips),smooth:true,showSymbol:false,lineStyle:{color:'#4ec9ff',width:1}},
+      {name:'温度',type:'line',yAxisIndex:1,data:w.data.map(d=>d.temperature),smooth:true,showSymbol:false,lineStyle:{color:'#f87171',width:1.5}},
+    ],
+    grid:{left:60,right:60,top:30,bottom:20},
+    dataZoom:[{type:'slider',start:0,end:100,height:20,bottom:0,textStyle:{color:'#6b7c93'}}],
+    graphic: corrNote ? [{type:'text',left:70,top:5,style:{text:'天气-订单相关系数：'+corrNote,fill:'#6b7c93',font:'10px sans-serif'}}] : [],
+  });
+}
+
+function renderPrediction() {
+  const chart = initChart('chart-pred'); if (!chart) return;
+  const pred = DATA.prediction;
+  if (!pred || !pred.data) return;
+  const d = pred.data;
+  // 显示11-12月数据
+  const idx = d.findIndex(r=>r.date>='2018-10-01');
+  const slice = d.slice(Math.max(0, idx>0?idx:0));
+  const maeText = pred.mae!=null ? `MAE：${pred.mae} 单/天` : '';
+  const mapeText = pred.mape!=null ? `MAPE：${pred.mape}%` : '';
+
+  chart.setOption({
+    tooltip:{trigger:'axis',formatter:params=>{
+      let s = '<b>'+params[0].axisValue+'</b><br/>';
+      params.forEach(p=>{
+        if (p.seriesName==='实际值') s+=p.marker+' 实际：<b>'+fmt(p.value)+'</b><br/>';
+        else if (p.seriesName==='预测值') s+=p.marker+' 预测：<b>'+fmt(p.value)+'</b><br/>';
+      });
+      return s;
+    }},
+    legend:{data:['实际值','预测值'],textStyle:{color:'#6b7c93'},top:0},
+    xAxis:{type:'category',data:slice.map(r=>r.date),axisLabel:{color:'#6b7c93',fontSize:9,rotate:45},splitLine:{show:false}},
+    yAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+    series:[
+      {name:'实际值',type:'line',data:slice.map(r=>r.actual),smooth:true,showSymbol:false,lineStyle:{color:'#4ec9ff',width:2}},
+      {name:'预测值',type:'line',data:slice.map(r=>r.predicted),smooth:true,showSymbol:false,lineStyle:{color:'#fbbf24',width:2,type:'dashed'}},
+      {name:'置信上界',type:'line',data:slice.map(r=>r.upper),smooth:true,showSymbol:false,lineStyle:{color:'rgba(251,191,36,0.1)',width:0},areaStyle:{color:'rgba(251,191,36,0.1)'},stack:'ci',silent:true},
+      {name:'置信下界',type:'line',data:slice.map(r=>r.lower),smooth:true,showSymbol:false,lineStyle:{color:'rgba(251,191,36,0)',width:0},areaStyle:{color:'transparent'},stack:'ci',silent:true},
+    ],
+    grid:{left:65,right:30,top:30,bottom:60},
+    dataZoom:[{type:'slider',start:0,end:100,height:20,bottom:5,textStyle:{color:'#6b7c93'}}],
+    graphic: [{type:'text',left:70,top:5,style:{text:[maeText,mapeText].filter(Boolean).join(' ｜ '),fill:'#6b7c93',font:'10px sans-serif'}}],
+  });
+}
+
+function renderTopZones() {
+  const chart = initChart('chart-zones'); if (!chart) return;
+  const sp = DATA.spatial;
+  if (!sp || !sp.top_pickup) return;
+  const zones = sp.top_pickup.slice(0,15);
+  chart.setOption({
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:p=>{
+      const z = zones[zones.length-1-p[0].dataIndex];
+      return `<b>${z.zone}</b><br/>行政区：${tBorough(z.borough)}<br/>订单量：${fmt(p[0].value)}`;
+    }},
+    xAxis:{type:'value',name:'订单量',splitLine:{lineStyle:{color:'#1e293b'}}},
+    yAxis:{type:'category',data:zones.map(z=>z.zone+' ('+tBorough(z.borough)+')').reverse(),axisLabel:{color:'#6b7c93',fontSize:9},inverse:true},
+    series:[{type:'bar',data:zones.map(z=>z.trips).reverse(),itemStyle:{color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#1e3a5f'},{offset:1,color:'#4ec9ff'}])}}],
+    grid:{left:160,right:30,top:5,bottom:10},
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════
+window.addEventListener('resize', ()=>{
+  document.querySelectorAll('.chart').forEach(dom=>{
+    const inst = echarts.getInstanceByDom(dom);
+    if (inst) inst.resize();
+  });
+});
+
+(function init() {
+  const ready = loadData();
+  if (ready && ready.then) { ready.then(renderAll); }
+  else { renderAll(); }
+})();
+</script>
+</body>
+</html>
