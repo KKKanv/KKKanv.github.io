@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的个人博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #f5f5f5; color: #333; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 60px 20px; text-align: center; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        header p { font-size: 1.2em; opacity: 0.9; }
+        nav { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px; text-align: center; position: sticky; top: 0; }
+        nav a { color: #667eea; text-decoration: none; margin: 0 20px; font-weight: bold; }
+        nav a:hover { color: #764ba2; }
+        .container { max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        .post-card { background: white; border-radius: 10px; padding: 30px; margin-bottom: 20px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); transition: transform 0.2s; }
+        .post-card:hover { transform: translateY(-3px); }
+        .post-card h2 { color: #667eea; margin-bottom: 15px; }
+        .post-card .date { color: #999; font-size: 0.9em; margin-bottom: 10px; }
+        .post-card a { display: inline-block; margin-top: 15px; padding: 10px 25px; background: #667eea; color: white; text-decoration: none; border-radius: 25px; }
+        .post-card a:hover { background: #764ba2; }
+        footer { text-align: center; padding: 30px; color: #999; background: white; margin-top: 40px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🌟 我的个人博客</h1>
+        <p>记录学习与生活，分享技术与成长</p>
+    </header>
+    <nav>
+        <a href="index.html">首页</a>
+        <a href="posts/first-blog.html">博客文章</a>
+        <a href="https://github.com" target="_blank">GitHub</a>
+    </nav>
+    <div class="container">
+        <div class="post-card">
+            <h2>📝 实验七：利用GitHub发布个人博客</h2>
+            <p class="date">2026年6月14日</p>
+            <p>本次实验学习使用GitHub Pages发布个人博客，掌握HTML网页设计方法，理解绝对路径与相对路径的区别。</p>
+            <a href="posts/first-blog.html">阅读全文 →</a>
+        </div>
+        <div class="post-card">
+            <h2>🚀 关于本站</h2>
+            <p class="date">2026年6月14日</p>
+            <p>本博客托管于GitHub Pages，使用纯HTML/CSS构建，展示静态网页发布与图片引用方式。</p>
+        </div>
+    </div>
+    <footer>
+        <p>© 2026 我的个人博客 | Powered by GitHub Pages</p>
+    </footer>
+</body>
+</html>
